@@ -1,4 +1,7 @@
-## Vendetta-E2
+## Vendetta
+![Written In](https://img.shields.io/badge/Written%20In-Expression2-blue?style=flat-square)
+![Size](https://img.shields.io/github/repo-size/Vurv78/Vendetta-E2?color=red&label=Size&style=flat-square)
+![Loicense](https://img.shields.io/github/license/Vurv78/Vendetta-E2?color=green&label=License&style=flat-square)
 
 This is a Discord Bot Library I made after making discord-bot-rs and wanting to take a break from the cancer that is low-level programming
 
@@ -7,8 +10,8 @@ Here's this god forsaken e2 code that I've slapped a LICENSE.md on cause I felt 
 It is fully functional though, correctly sends heartbeats, makes sure discord acks back. It has everything you could use in the discord REST api in terms of bots, there is no capability for sending messages from the bot to the server though. This is because E2 doesn't allow POST requests or http headers at all (or at least until I add it in 500 years)
 
 ### Dependencies
-[VExtensions](https://github.com/Vurv78/VExtensions) and  
-[AEWebsocket Core Github](https://github.com/Andrew-Eathan/aewebsocketcore), which is a modified version of [Websocket Core](https://steamcommunity.com/sharedfiles/filedetails/?id=1773811033), they both do the same thing, but AEWebsocket core renames a few things, if you have Websocket Core and not AEWebsocket Core, then you'll have to manually rename the used functions in the library. Good thing it's less than 200 lines.
+[VExtensions](https://github.com/Vurv78/VExtensions) and [AEWebsocket Core Github](https://github.com/Andrew-Eathan/aewebsocketcore), which is a modified version of [Websocket Core](https://steamcommunity.com/sharedfiles/filedetails/?id=1773811033), they both do the same thing, but AEWebsocket core renames a few things.  
+If you have Websocket Core and not AEWebsocket Core, then you'll have to manually rename the used functions in the library. Good thing it's less than 200 lines.
 
 ### Features
 * Low level discord api usage, meaning you can do anything you want really and don't need an extension to this library

@@ -10,7 +10,19 @@ It is fully functional though, correctly sends heartbeats, makes sure discord ac
 [VExtensions](https://github.com/Vurv78/VExtensions) and  
 [AEWebsocket Core Github](https://github.com/Andrew-Eathan/aewebsocketcore), which is a modified version of [Websocket Core](https://steamcommunity.com/sharedfiles/filedetails/?id=1773811033), they both do the same thing, but AEWebsocket core renames a few things, if you have Websocket Core and not AEWebsocket Core, then you'll have to manually rename the used functions in the library. Good thing it's less than 200 lines.
 
-Example Code:
+### Features
+* Low level discord api usage, meaning you can do anything you want really and don't need an extension to this library
+* Event system, run on certain discord api events, interact with given data
+* Automated abstracted heartbeat, makes sure discord acknowledges heartbeats sent, closes the bot automatically when the chip is deleted.
+* Support for multiple bots running at once
+* Consistent function namesake with the vn* prefix
+* ~500 ops maximum, ~100 cpu usage at any time
+
+### TODO
+* Reconnecting when we disconnect for some reason (I've never encountered disconnects)
+* Sharding (Never gonna happen dude)
+
+### Example Code:
 
 ```c++
 @name Discord Bot Relay

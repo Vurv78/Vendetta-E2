@@ -3,17 +3,23 @@
 # Structs
 @persist VENDETTA_BOTSTRUCT:table
 @persist VENDETTA_RUNNING
-@persist GATEWAY_LINK:string
+@persist [GATEWAY_LINK VENDETTA_WEBHOOK_PROXY]:string
 @persist VENDETTA_CONNECTED:table
 @persist VENDETTA_IDCTR
+
+# HTTP Queue
+@persist VENDETTA_HTTP_REQUESTS:table VENDETTA_HTTP_ROUTINE:coroutine VENDETTA_REQ_COUNT
 
 # ENUMS, will all start with VN
 
 # Intents, https://discord.com/developers/docs/topics/gateway#list-of-intents
 @persist VN_INTENT:table
 
+local ClkName = clkName()
+
 if(first()){
     GATEWAY_LINK = "wss://gateway.discord.gg"
+    VENDETTA_WEBHOOK_PROXY = "https://vurv.pythonanywhere.com" # So we can send messages to webhooks at least.
     VENDETTA_BOTSTRUCT = table(
         "tok" = "", # Token
         "heartbeat" = 30000, # Heartbeat delay
@@ -31,17 +37,17 @@ if(first()){
         Struct["id",number] = VENDETTA_IDCTR
         return Struct
     }
-
+    
     function table:vnCheckBot(){
         assert(This["vn",number]==1,"This is not a discord bot!")
     }
-
+    
     function table:vnConnect(){
         wsCreateConnection(This["id",number], GATEWAY_LINK)
         runOnWS(1)
         VENDETTA_CONNECTED:pushTable(This)
     }
-
+    
     function table:vnOnEvent([Event Fn]:string){
         assert(defined(Fn)==2, "Invalid function given to vnOnEvent!")
         local EventsTab = This["events",table]
@@ -53,13 +59,13 @@ if(first()){
             EventsTab[Event,table][Fn,number] = 1
         }
     }
-
+    
     # Encodes a table into json, but also replaces all floating point numbers with integers.
     # If you don't do this, it breaks everything !!!
     function string vnJSON(T:table) {
         return jsonEncode(T):replaceRE("(%d+)%.%d+","%1")
     }
-
+    
     function table:vnSendHeartbeat(){
         This:vnCheckBot()
         wsSend(
@@ -77,21 +83,13 @@ if(first()){
         This["online",number] = 0
         wsForceClose(This["id",number])
     }
-
+    
     function table:vnAddIntent(Intent:number){
         This:vnCheckBot()
         assert(!This["online",number], "The bot must not be online to set it's intents!")
         This["intent",number] = This["intent",number] + (1 << Intent)
     }
-
-    #[
-        This doesn't and won't exist until E2 has the ability to send HTTP POST requests with headers.
-        I don't know if I will do it, but RIP this nerfs the bot hard.
-        function table:vnSendMessage(ChannelID, Content:string){
-
-        }
-    ]#
-
+    
     # GUILDS + GUILD_MEMBERS = (1 << 0) + (1 << 1)
     VN_INTENT = table(
         "GUILDS" = 0,
@@ -110,12 +108,47 @@ if(first()){
         "DIRECT_MESSAGE_REACTIONS" = 13,
         "DIRECT_MESSAGE_TYPING" = 14
     )
+    
+    ## Queues a HTTP Request to be handled asynchronously
+    function vnHTTPQueue(Req:string){
+        VENDETTA_HTTP_REQUESTS:pushString(Req)
+        VENDETTA_REQ_COUNT++
+    }
 
+    # The only way we have right now is to use a proxy to send a message,
+    # This is because of a few reasons:
+    # 1. Discord blocked Steam HTTP / Gmod HTTP's Useragent (So you can't send anything to discord with regular http requests)
+    # 2. E2 Can't send HTTP POST Requests
+    # 3. E2 Can't send HTTP Headers to auth with the bot.    
+    # So for now you could use this, which only can send to a webhook and goes through my proxy.
+    # Assuming you trust my proxy enough. Here's the source code tho: https://github.com/Vurv78/Webserver/blob/master/src/routes/Query.hx
+    function vnSendWHMessage([WebhookURL Content Name Avatar]:string){
+        # Not ratelimited.
+        vnHTTPQueue( format("%s/query?webhook=%s&content=%s&name=%s&avatar=%s",VENDETTA_WEBHOOK_PROXY, WebhookURL, httpUrlEncode(Content), Name, Avatar ) )
+    }
+    
+    ## Internal function, don't use this, it'll crash your chip.
+    function vnHandleHTTP(){
+        while(1){
+            while(VENDETTA_REQ_COUNT & httpCanRequest()){
+                httpRequest( VENDETTA_HTTP_REQUESTS:removeString(1) )
+                VENDETTA_REQ_COUNT--
+            }
+            coroutineYield()
+        }    
+    }
+    VENDETTA_HTTP_ROUTINE = coroutine("vnHandleHTTP")
+    VN_HTTP_DELAY = 200 # 200ms in between each check to see whether we can send an http request from the queue.
     runOnLast(1)
-}elseif(clkName()){
-    local Name = clkName()
-    if(Name:sub(1,12)=="vn_heartbeat"){
-        local Bot = VENDETTA_CONNECTED[Name:matchFirst("vn_heartbeat_(%d+)"):toNumber(),table]
+    timer("vn_handle_http",VN_HTTP_DELAY)
+    
+}elseif(ClkName=="vn_handle_http"){
+    VENDETTA_HTTP_ROUTINE:resume()
+    timer("vn_handle_http",VN_HTTP_DELAY)
+    exit() # Don't want to run any other code
+}elseif(ClkName){
+    if(ClkName:sub(1,12)=="vn_heartbeat"){
+        local Bot = VENDETTA_CONNECTED[ClkName:matchFirst("vn_heartbeat_(%d+)"):toNumber(),table]
         if(!Bot["heartbeat_ack",number]){
             error("Discord failed to respond to heartbeat ack in time.")
         }
@@ -144,11 +177,11 @@ if(first()){
                     # if discord has responded. If not, then error the chip.
                     Bot["heartbeat_ack",number] = 1
                 break
-
+                
                 case 10,
                     # Handshake
                     local EventData = Data["d",table]
-
+                    
                     # IDENTIFY Message.
                     wsSend(
                         SocketID,
@@ -161,25 +194,25 @@ if(first()){
                             )
                         ))
                     )
-
+                    
                     # Setup the heartbeat
                     local Heartbeat = EventData["heartbeat_interval",number]
                     Bot["heartbeat",number] = Heartbeat
                     Bot:vnSendHeartbeat()
                     timer("vn_heartbeat_"+SocketID,Heartbeat)
                 break
-
+        
                 case 9,
                     # Invalid Session. Happened to me when you got the intents wrong.
                     print("Vendetta; Invalid Session")
                     Bot:vnKill()
                 break
-
+                
                 case 7,
                     # Reconnect, usually because you tried to start the bot right after closing another instance of it.
                     print("Vendetta; Reconnect the bot.")
                 break
-
+            
                 case 0,
                     # DISPATCH / Event
                     local EventData = Data["d",table]

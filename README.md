@@ -17,6 +17,8 @@ It is fully functional though, correctly sends heartbeats, makes sure discord ac
 * Support for multiple bots running at once
 * Consistent function namesake with the vn* prefix
 * ~500 ops maximum, ~100 cpu usage at any time
+* Asynchronous HTTP using coroutines, see vnHTTPRequest
+* Webhook message sending
 
 ### TODO
 * Reconnecting when we disconnect for some reason (I've never encountered disconnects)

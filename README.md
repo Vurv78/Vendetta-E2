@@ -21,6 +21,7 @@ It is fully functional though, correctly sends heartbeats, makes sure discord ac
 * Webhook message sending
 
 ### TODO
+* Commands API (Just some abstraction to keep a prefix and easily make commands)
 * Reconnecting when we disconnect for some reason (I've never encountered disconnects)
 * Sharding (Never gonna happen dude)
 
@@ -29,10 +30,7 @@ It is fully functional though, correctly sends heartbeats, makes sure discord ac
 ```c++
 @name Discord Bot Relay
 @persist Bot:table
-
 @persist [BLACK PURPLE WHITE]:vector # Colors
-@persist LINK_CHANNEL_ID
-
 #include "vendetta"
 if( first() ){
     # Constants
@@ -47,10 +45,6 @@ if( first() ){
         local Username = Ctx["author",table]["username",string]
         printGlobal(BLACK,"[",PURPLE,"Discord",BLACK,"] ",PURPLE, Username, WHITE,": ", Ctx["content",string])
     }
-    function on_guild(Ctx:table){
-        # Received guild info
-        printTable(Ctx)
-    }
     function on_ready(Ctx:table){
         local User = Ctx["user",table]
         print(format("Logged in as bot %s#%s",User["username",string],User["discriminator",string]))
@@ -59,7 +53,7 @@ if( first() ){
     Bot:vnAddIntent(VN_INTENT["GUILD_MESSAGES",number]) # Subscribe to getting message events (MESSAGE_CREATE, etc)
 
     Bot:vnOnEvent("READY","on_ready")
-    Bot:vnOnEvent("MESSAGE_CREATE","on_message")
-    Bot:vnConnect()
+    Bot:vnOnEvent("MESSAGE_CREATE","on_message") # When a message is created. (Can be made by a bot, system, user, webhook, so make sure you know which is which)
+    Bot:vnConnect() # Start the bot
 }
 ```

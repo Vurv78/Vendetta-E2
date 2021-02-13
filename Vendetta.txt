@@ -1,0 +1,200 @@
+@name Vendetta
+# NOTE: Persists are global. That's why we need to do this garbage
+# Structs
+@persist VENDETTA_BOTSTRUCT:table
+@persist VENDETTA_RUNNING
+@persist GATEWAY_LINK:string
+@persist VENDETTA_CONNECTED:table
+@persist VENDETTA_IDCTR
+
+# ENUMS, will all start with VN
+
+# Intents, https://discord.com/developers/docs/topics/gateway#list-of-intents
+@persist VN_INTENT:table
+
+if(first()){
+    GATEWAY_LINK = "wss://gateway.discord.gg"
+    VENDETTA_BOTSTRUCT = table(
+        "tok" = "", # Token
+        "heartbeat" = 30000, # Heartbeat delay
+        "heartbeat_ack" = 0, # Heartbeat has been acknowledged
+        "id" = 0, # Websocket id
+        "vn" = 1, # Just a OOP identifier
+        "events" = table(), # List of registered events to run e2 functions on.
+        "online" = 0, # Status of whether the bot is online or not.
+        "intent" = (1 << 0) # https://discord.com/developers/docs/topics/gateway#list-of-intents
+    )
+    function table discordBot(Tok:string){
+        local Struct = VENDETTA_BOTSTRUCT:clone()
+        Struct["tok",string] = Tok
+        VENDETTA_IDCTR++
+        Struct["id",number] = VENDETTA_IDCTR
+        return Struct
+    }
+
+    function table:vnCheckBot(){
+        assert(This["vn",number]==1,"This is not a discord bot!")
+    }
+
+    function table:vnConnect(){
+        wsCreateConnection(This["id",number], GATEWAY_LINK)
+        runOnWS(1)
+        VENDETTA_CONNECTED:pushTable(This)
+    }
+
+    function table:vnOnEvent([Event Fn]:string){
+        assert(defined(Fn)==2, "Invalid function given to vnOnEvent!")
+        local EventsTab = This["events",table]
+        if(!EventsTab:exists(Event)){
+            local T = table()
+            T[Fn,number] = 1
+            EventsTab[Event,table] = T
+        }else{
+            EventsTab[Event,table][Fn,number] = 1
+        }
+    }
+
+    # Encodes a table into json, but also replaces all floating point numbers with integers.
+    # If you don't do this, it breaks everything !!!
+    function string vnJSON(T:table) {
+        return jsonEncode(T):replaceRE("(%d+)%.%d+","%1")
+    }
+
+    function table:vnSendHeartbeat(){
+        This:vnCheckBot()
+        wsSend(
+            This["id",number],
+            vnJSON(table(
+                "op" = 1,
+                "d" = 251
+            ))
+        )
+        This["heartbeat_ack",number] = 0 # Reset that the heartbeat has been acknowledged.
+    }
+
+    function table:vnKill(){
+        This:vnCheckBot()
+        This["online",number] = 0
+        wsForceClose(This["id",number])
+    }
+
+    function table:vnAddIntent(Intent:number){
+        This:vnCheckBot()
+        assert(!This["online",number], "The bot must not be online to set it's intents!")
+        This["intent",number] = This["intent",number] + (1 << Intent)
+    }
+
+    #[
+        This doesn't and won't exist until E2 has the ability to send HTTP POST requests with headers.
+        I don't know if I will do it, but RIP this nerfs the bot hard.
+        function table:vnSendMessage(ChannelID, Content:string){
+
+        }
+    ]#
+
+    # GUILDS + GUILD_MEMBERS = (1 << 0) + (1 << 1)
+    VN_INTENT = table(
+        "GUILDS" = 0,
+        "GUILD_MEMBERS" = 1,
+        "GUILD_BANS" = 2,
+        "GUILD_EMOJIS" = 3,
+        "GUILD_INTEGRATIONS" = 4,
+        "GUILD_WEBHOOKS" = 5,
+        "GUILD_INVITES" = 6,
+        "GUILD_VOICE_STATES" = 7,
+        "GUILD_PRESENCES" = 8,
+        "GUILD_MESSAGES" = 9,
+        "GUILD_MESSAGE_REACTIONS" = 10,
+        "GUILD_MESSAGE_TYPING" = 11,
+        "DIRECT_MESSAGES" = 12,
+        "DIRECT_MESSAGE_REACTIONS" = 13,
+        "DIRECT_MESSAGE_TYPING" = 14
+    )
+
+    runOnLast(1)
+}elseif(clkName()){
+    local Name = clkName()
+    if(Name:sub(1,12)=="vn_heartbeat"){
+        local Bot = VENDETTA_CONNECTED[Name:matchFirst("vn_heartbeat_(%d+)"):toNumber(),table]
+        if(!Bot["heartbeat_ack",number]){
+            error("Discord failed to respond to heartbeat ack in time.")
+        }
+        local SocketID = Bot["id",number]
+        Bot:vnSendHeartbeat()
+        timer("vn_heartbeat_"+SocketID, Bot["heartbeat",number])
+    }
+}elseif(last()){
+    foreach(K,Bot:table=VENDETTA_CONNECTED){
+        wsForceClose(Bot["id",number])
+    }
+    # If one or more bots was running
+    if(VENDETTA_CONNECTED:count()){
+        print("Killed running discord bot processes!")
+    }
+}else{
+    # Hacky way to get the current socket that caused the clk, since websocket core sucks
+    foreach(K:number,Bot:table=VENDETTA_CONNECTED){
+        local SocketID = Bot["id",number]
+        if(wsDataClk(SocketID)){
+            local Data = jsonDecode(wsGetData(SocketID))
+            switch(Data["op",number]) {
+                case 11,
+                    # Heartbeat ack
+                    # Whenever we send a heartbeat, we will check in 5s
+                    # if discord has responded. If not, then error the chip.
+                    Bot["heartbeat_ack",number] = 1
+                break
+
+                case 10,
+                    # Handshake
+                    local EventData = Data["d",table]
+
+                    # IDENTIFY Message.
+                    wsSend(
+                        SocketID,
+                        vnJSON( table(
+                            "op" = 2, # IDENTIFY opcode
+                            "d" = table(
+                                "token" = Bot["tok",string],
+                                "properties" = table("$os"="E2"),
+                                "intents" = Bot["intent",number]
+                            )
+                        ))
+                    )
+
+                    # Setup the heartbeat
+                    local Heartbeat = EventData["heartbeat_interval",number]
+                    Bot["heartbeat",number] = Heartbeat
+                    Bot:vnSendHeartbeat()
+                    timer("vn_heartbeat_"+SocketID,Heartbeat)
+                break
+
+                case 9,
+                    # Invalid Session. Happened to me when you got the intents wrong.
+                    print("Vendetta; Invalid Session")
+                    Bot:vnKill()
+                break
+
+                case 7,
+                    # Reconnect, usually because you tried to start the bot right after closing another instance of it.
+                    print("Vendetta; Reconnect the bot.")
+                break
+
+                case 0,
+                    # DISPATCH / Event
+                    local EventData = Data["d",table]
+                    local EventName = Data["t",string]
+                    local EventsTab = Bot["events",table]
+                    if(EventsTab:exists(EventName)){
+                        foreach(FnName:string, K:number = EventsTab[EventName,table]){
+                            # All functions should already have been checked to be valid.
+                            FnName(EventData)
+                        }
+                    }
+                break
+            }
+        }elseif(wsErrorClk(SocketID)){
+            error(wsGetError(SocketID))
+        }
+    }
+}

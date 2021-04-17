@@ -1,7 +1,5 @@
-## Vendetta
-![Written In](https://img.shields.io/badge/Written%20In-Expression2-blue?style=flat-square)
-![Size](https://img.shields.io/github/repo-size/Vurv78/Vendetta-E2?color=red&label=Size&style=flat-square)
-![Loicense](https://img.shields.io/github/license/Vurv78/Vendetta-E2?color=green&label=License&style=flat-square)
+## Vendetta ![Written In](https://img.shields.io/badge/Written%20In-Expression2-blue?style=flat-square) ![Size](https://img.shields.io/github/repo-size/Vurv78/Vendetta-E2?color=red&label=Size&style=flat-square) ![Sin](https://img.shields.io/github/license/Vurv78/Vendetta-E2?color=green&label=License&style=flat-square) [![github/Vurv78](https://discordapp.com/api/guilds/824727565948157963/widget.png)](https://discord.gg/epJFC6cNsw)
+
 
 This is a Discord Bot Library I made after making discord-bot-rs and wanting to take a break from the cancer that is low-level programming
 
